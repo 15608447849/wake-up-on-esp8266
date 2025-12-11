@@ -59,6 +59,7 @@ func (c *ClientConnection) UpdateHeartbeat() {
 	if c.IsActive {
 		c.LastHeartbeat = time.Now()
 	}
+	fmt.Printf("更新心跳 %v \n", c)
 }
 
 
@@ -117,10 +118,10 @@ func (c *ClientConnection) IsTimeout() bool {
 
 // 获取连接信息字符串
 func (c *ClientConnection) String() string {
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
+	// c.mutex.RLock()
+	// defer c.mutex.RUnlock()
 	
-	return fmt.Sprintf("Connection{ID:%s, Type:%s, HostIP:%s, RemoteAddr:%s, Active:%v}", 
+	return fmt.Sprintf("Connection-ID:%s, Type:%s, HostIP:%s, RemoteAddr:%s, Active:%v\t", 
 		c.ID, c.ClientType, c.HostIP, c.RemoteAddr, c.IsActive)
 }
 

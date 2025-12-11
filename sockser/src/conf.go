@@ -17,6 +17,7 @@ const (
 const (
 	CMD_HEARTBEAT = "heartbeat" // 心跳命令
 	CMD_FORWARD   = "forward"   // 转发命令
+	CMD_WAKE_ON_LAN   = "wake_on_lan"   // 下发命令
 )
 
 // 客户端类型常量
@@ -41,10 +42,10 @@ const (
 
 // JSON消息结构体
 type Message struct {
-	Cmd  string `json:"cmd"`           // 命令类型: heartbeat, forward
-	Data string `json:"data"`          // 消息内容
 	Host string `json:"host"`          // 客户端内网IP
 	Type string `json:"type"`          // 客户端类型: app, esp8266
+	Cmd  string `json:"cmd"`           // 命令类型: heartbeat, forward
+	Data string `json:"data"`          // 消息内容
 	ToIP string `json:"toip,omitempty"` // 目标设备IP（可选）
 }
  
