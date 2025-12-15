@@ -1,6 +1,7 @@
 package lsp.wol.app.views;
 
 import android.content.Context;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -43,6 +44,17 @@ public class AddDeviceDialog  extends AlertDialog {
             }
 
             // 输入的mac自动变成 aa:bb:cc 大写格式
+            String cleanText = cleanMacText(mac.toString());
+            String formattedText = formatMacText(cleanText);
+            if (formattedText.length() > 17) {
+                formattedText = formattedText.substring(0, 17);
+            }
+            mac = formattedText;
+
+            if (!isMacValid(mac)){
+                Toast.makeText(getContext(), "MAC格式不正确", Toast.LENGTH_SHORT).show();
+                return;
+            }
 
             // 删除设备
             if (oldDevice!=null){
@@ -76,5 +88,47 @@ public class AddDeviceDialog  extends AlertDialog {
 
     }
 
+    /**
+     * 清洗MAC文本：只保留十六进制字符，转大写
+     * @param text 原始输入文本
+     * @return 清洗后的纯十六进制大写字符串
+     */
+    private static String cleanMacText(String text) {
+        if (TextUtils.isEmpty(text)) return "";
+        // 正则匹配十六进制字符（0-9, a-f, A-F），其余过滤
+        return text.replaceAll("[^0-9a-fA-F]", "")
+                .toUpperCase();
+    }
+    /**
+     * 格式化清洗后的MAC文本：每2个字符加分隔符
+     * @param cleanText 清洗后的纯十六进制字符串
+     * @return 格式化后的MAC字符串（如 AA:BB:CC）
+     */
+    private static String formatMacText(String cleanText) {
+        StringBuilder sb = new StringBuilder();
+        int length = cleanText.length();
+
+        for (int i = 0; i < length; i++) {
+            sb.append(cleanText.charAt(i));
+            // 每2个字符加分隔符（最后一组不加）
+            if ((i + 1) % 2 == 0 && i != length - 1) {
+                sb.append(":");
+            }
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * 校验MAC地址是否合法（格式化后长度为17）
+     * @param mac 格式化后的MAC字符串
+     * @return true=合法，false=不合法
+     */
+    public static boolean isMacValid(String mac) {
+        if (TextUtils.isEmpty(mac)) return false;
+        // 正则校验：AA:BB:CC:DD:EE:FF 格式
+        String macRegex = "^([0-9A-F]{2}:){5}[0-9A-F]{2}$";
+        return mac.matches(macRegex);
+    }
 
 }
