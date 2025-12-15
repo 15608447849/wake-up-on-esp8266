@@ -9,11 +9,9 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
-import java.util.List;
-
 import lsp.wol.app.R;
 import lsp.wol.app.model.Device;
-import lsp.wol.app.model.DeviceChangeCallback;
+import lsp.wol.app.model.DeviceEventCallback;
 import lsp.wol.app.utils.DeviceSPUtil;
 import lsp.wol.app.views.AddDeviceDialog;
 
@@ -25,9 +23,9 @@ public class DeviceItemViewHolder extends RecyclerView.ViewHolder {
     private final Button editButton;
     private final Button deleteButton;
     private final Button sendWolButton;
-    private final DeviceChangeCallback callback;
+    private final DeviceEventCallback callback;
 
-    public DeviceItemViewHolder(@NonNull View itemView, DeviceChangeCallback callback) {
+    public DeviceItemViewHolder(@NonNull View itemView, DeviceEventCallback callback) {
         super(itemView);
         this.callback = callback;
         deviceName = itemView.findViewById(R.id.device_name);
@@ -55,12 +53,7 @@ public class DeviceItemViewHolder extends RecyclerView.ViewHolder {
                 // 进入编辑页
                 Log.i(String.valueOf(R.string.app_name), "onClick: 编辑");
                 // 打开设备添加弹窗
-                new AddDeviceDialog(view.getContext(),"修改设备",device, new DeviceChangeCallback() {
-                    @Override
-                    public void onChange(Device device) {
-                         callback.onChange(device);
-                    }
-                });
+                new AddDeviceDialog(view.getContext(),"修改设备",device, callback);
             }
         });
 
@@ -70,7 +63,7 @@ public class DeviceItemViewHolder extends RecyclerView.ViewHolder {
                 Context context = view.getContext();
                 // 网络唤醒
                 Log.i(String.valueOf(R.string.app_name), "onClick: 网络唤醒");
-
+                callback.wakeOnLan(device);
             }
         });
     }

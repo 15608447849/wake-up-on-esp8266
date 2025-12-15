@@ -12,7 +12,7 @@ import androidx.appcompat.app.AlertDialog;
 
 import lsp.wol.app.R;
 import lsp.wol.app.model.Device;
-import lsp.wol.app.model.DeviceChangeCallback;
+import lsp.wol.app.model.DeviceEventCallback;
 import lsp.wol.app.utils.DeviceSPUtil;
 
 public class AddDeviceDialog  extends AlertDialog {
@@ -20,7 +20,7 @@ public class AddDeviceDialog  extends AlertDialog {
     private EditText etName;
     private EditText etMac;
 
-    public AddDeviceDialog(Context context, String title, Device oldDevice, DeviceChangeCallback callback) {
+    public AddDeviceDialog(Context context, String title, Device oldDevice, DeviceEventCallback callback) {
         super(context);
         // 加载对话框布局
         View dialogView = LayoutInflater.from(getContext())

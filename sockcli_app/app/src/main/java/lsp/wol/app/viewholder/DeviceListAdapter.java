@@ -11,12 +11,11 @@ import androidx.recyclerview.widget.AsyncListDiffer;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.RecyclerView;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import lsp.wol.app.R;
 import lsp.wol.app.model.Device;
-import lsp.wol.app.model.DeviceChangeCallback;
+import lsp.wol.app.model.DeviceEventCallback;
 
 public class DeviceListAdapter  extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final AsyncListDiffer<Device> listDiffer = new AsyncListDiffer<>(this, new DiffUtil.ItemCallback<>(){
@@ -35,9 +34,9 @@ public class DeviceListAdapter  extends RecyclerView.Adapter<RecyclerView.ViewHo
     });
 
     private Context mContext;
-    private DeviceChangeCallback callback;
+    private DeviceEventCallback callback;
 
-    public DeviceListAdapter(Context context, DeviceChangeCallback callback) {
+    public DeviceListAdapter(Context context, DeviceEventCallback callback) {
         this.mContext = context;
         this.callback = callback;
     }
