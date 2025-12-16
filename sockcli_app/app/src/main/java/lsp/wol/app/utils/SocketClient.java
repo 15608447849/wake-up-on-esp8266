@@ -16,6 +16,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.BlockingQueue;
@@ -103,6 +104,7 @@ public class SocketClient {
             // 1秒超时
             socket.setSoTimeout(1000);
             socket.setKeepAlive(true);
+            socket.setTcpNoDelay(true);
             // 服务器
             InetAddress address = InetAddress.getByName(SERVER_HOST);
             SocketAddress socketAddress = new InetSocketAddress(address, SERVER_PORT);
@@ -134,26 +136,34 @@ public class SocketClient {
         try {
             if (inputStream != null) {
                 inputStream.close();
-                inputStream = null;
+
             }
         } catch (Exception e) {
             Log.e(String.valueOf(R.string.app_name), "SocketClient cleanup", e);
+        }finally {
+            inputStream = null;
         }
         try {
             if (outputStream != null) {
                 outputStream.close();
-                outputStream = null;
+
             }
         } catch (Exception e) {
             Log.e(String.valueOf(R.string.app_name), "SocketClient cleanup", e);
+        }finally {
+            outputStream = null;
         }
         try {
             if (socket != null) {
+                socket.shutdownOutput();
+                socket.shutdownInput();
                 socket.close();
-                socket = null;
+
             }
         } catch (Exception e) {
             Log.e(String.valueOf(R.string.app_name), "SocketClient cleanup", e);
+        }finally {
+            socket = null;
         }
     }
 
@@ -182,10 +192,14 @@ public class SocketClient {
     }
 
     private void doSendBytes(byte[] bytes) {
-        if (outputStream!=null && isRunning && !socket.isClosed()) {
+        if (outputStream!=null && isRunning && !socket.isClosed() && socket.isConnected()) {
             try {
                 outputStream.write(bytes);
                 outputStream.flush();
+            } catch (SocketException se){
+                Log.i(String.valueOf(R.string.app_name), "SocketClient doSendBytes SocketException= "+ se);
+
+                cleanup();
             } catch (Exception e) {
                 Log.e(String.valueOf(R.string.app_name), "SocketClient doSendBytes", e);
             }
@@ -195,7 +209,7 @@ public class SocketClient {
     private void doReceive(){
         if (inputStream!=null && isRunning && socket != null && !socket.isClosed()){
             try{
-                socket.setSoTimeout(3000);
+                socket.setSoTimeout(10*1000);
                 // 阻塞读取，有数据时才会继续
                 int bytesRead = inputStream.read(buffer);
 
@@ -212,7 +226,7 @@ public class SocketClient {
 
     private void connectionLoop() {
         int loopIndex = 0;
-        while (isRunning && socket != null && !socket.isClosed()){
+        while (isRunning && socket != null && !socket.isClosed() && socket.isConnected()){
             // 消息发送
             doSendHandle();
             // 心跳发送
@@ -221,7 +235,8 @@ public class SocketClient {
             doReceive();
 
             loopIndex++;
-            Log.i(String.valueOf(R.string.app_name), "SocketClient connectionLoop: index= " + loopIndex );
+
+            //Log.i(String.valueOf(R.string.app_name), "SocketClient connectionLoop: index= " + loopIndex );
         }
     }
 

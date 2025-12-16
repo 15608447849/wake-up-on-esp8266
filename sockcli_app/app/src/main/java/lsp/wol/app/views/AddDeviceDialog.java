@@ -56,14 +56,22 @@ public class AddDeviceDialog  extends AlertDialog {
                 return;
             }
 
+            Device newDevice = new Device(name, mac);
+
+
             // 删除设备
             if (oldDevice!=null){
+                if (oldDevice.macAddress.equals(newDevice.macAddress)
+                        && oldDevice.name.equals(newDevice.name)){
+                    return;
+                }
+
                 DeviceSPUtil.deleteDevice(context, oldDevice);
-                Log.i(String.valueOf(R.string.app_name), "AddDeviceDialog: 添加设备: "+ oldDevice.name+" "+ oldDevice.macAddress);
+                Log.i(String.valueOf(R.string.app_name), "AddDeviceDialog: 删除设备: "+ oldDevice.name+" "+ oldDevice.macAddress);
             }
 
            // 保存设备
-            Device newDevice = new Device(name, mac);
+
             DeviceSPUtil.addDevice(context, new Device(name,mac));
             Log.i(String.valueOf(R.string.app_name), "AddDeviceDialog: 添加设备: "+ newDevice.name+" "+ newDevice.macAddress);
             callback.onChange(newDevice);

@@ -15,6 +15,8 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
+import java.util.List;
+
 import lsp.wol.app.model.Device;
 import lsp.wol.app.utils.DeviceSPUtil;
 import lsp.wol.app.utils.SocketClient;
@@ -72,6 +74,10 @@ public class MainActivity extends AppCompatActivity{
         mAdapter = new DeviceListAdapter(this, deviceChangeCallback);
         mRecyclerView.setAdapter(mAdapter);
         // 初始化数据
+        if (DeviceSPUtil.getDeviceList(MainActivity.this).isEmpty()){
+            DeviceSPUtil.addDevice(this, new Device("天和华城Windows主机","CC:28:AA:06:77:E9"));
+            DeviceSPUtil.addDevice(this, new Device("天和华成Linux主机","00:E0:4C:A2:00:F3"));
+        }
         mAdapter.addDevices(DeviceSPUtil.getDeviceList(MainActivity.this));
 
         // 浮动按钮
