@@ -2,22 +2,23 @@ package main
 
 import "time"
 import "fmt"
- 
 
 // 服务器配置参数
 const (
-	DEFAULT_PORT           = 8080                // 默认监听端口
-	MAX_CONNECTIONS        = 1000               // 最大连接数
-	MESSAGE_BUFFER_SIZE            = 1024                // 缓冲区大小
-	HEARTBEAT_CHECK_INTERVAL = 10 * time.Second // 心跳检查间隔 秒 
-	HEARTBEAT_TIMEOUT      = 30 * time.Second   // 心跳超时时间 秒
+	DEFAULT_PORT             = 8080             // 默认监听端口
+	MAX_CONNECTIONS          = 1000             // 最大连接数
+	MESSAGE_BUFFER_SIZE      = 1024             // 缓冲区大小
+	HEARTBEAT_CHECK_INTERVAL = 10 * time.Second // 心跳检查间隔 秒
+	HEARTBEAT_TIMEOUT        = 30 * time.Second // 心跳超时时间 秒
 )
 
 // 命令类型常量
 const (
-	CMD_HEARTBEAT = "heartbeat" // 心跳命令
-	CMD_FORWARD   = "forward"   // 转发命令
-	CMD_WAKE_ON_LAN   = "wake_on_lan"   // 下发命令
+	CMD_NETWORK_ADDRESS            = "net_ip"           // 远程地址
+	CMD_HEARTBEAT                  = "heartbeat"        // 心跳命令
+	CMD_WAKE_ON_LAN                = "wol"              // 网络唤醒命令
+	CMD_WAKE_ON_LAN_DEVICE_SIZE    = "wol_rec_dev_size" // 网络唤醒命令 接收设备数量
+	CMD_WAKE_ON_LAN_DEVICE_RECEIPT = "wol_rec_dev_recp" // 网络唤醒命令 接收设备 回执
 )
 
 // 客户端类型常量
@@ -26,35 +27,22 @@ const (
 	TYPE_ESP8266 = "esp8266" // ESP8266设备
 )
 
-
 // 错误代码常量
 const (
-	ERR_JSON_INVALID       = 1001 // JSON格式错误
-	ERR_MESSAGE_TOO_LARGE  = 1002 // 消息过大
-	ERR_CLIENT_NOT_FOUND   = 1003 // 客户端未找到
-	ERR_DEVICE_OFFLINE     = 1004 // 设备离线
-	ERR_CONNECTION_TIMEOUT = 1005 // 连接超时
-	ERR_SEND_FAILED        = 1006 // 发送失败
-	ERR_INVALID_CLIENT_TYPE = 1007 // 无效客户端类型
-	ERR_MISSING_FIELD      = 1008 // 缺少必填字段
+	ERR_CONNECTION_TIMEOUT         = 1001 // 连接超时
+	ERR_SEND_FAILED                = 1002 // 发送失败
+	ERR_INVALID_CLIENT_TYPE        = 1003 // 无效客户端类型
+	ERR_JSON_SERIALIZATION_ERROR   = 1004 // 序列化错误
+	ERR_JSON_DESERIALIZATION_ERROR = 1004 // 反序列化错误
 )
-
 
 // JSON消息结构体
 type Message struct {
-	Host string `json:"host"`          // 客户端内网IP
-	Type string `json:"type"`          // 客户端类型: app, esp8266
-	Cmd  string `json:"cmd"`           // 命令类型: heartbeat, forward
-	Data string `json:"data"`          // 消息内容
-	ToIP string `json:"toip,omitempty"` // 目标设备IP（可选）
+	Host string `json:"host,omitempty"` // 客户端 内网IP
+	Type string `json:"type,omitempty"` // 客户端 类型
+	Cmd  string `json:"cmd"`            // 命令类型
+	Data string `json:"data"`           // 消息内容
 }
- 
-
-
-
-
-
-
 
 // 自定义错误类型
 type ServerError struct {
@@ -72,6 +60,6 @@ func NewServerError(code int, message string) *ServerError {
 
 // 实现error接口
 func (e *ServerError) Error() string {
-	 
+
 	return fmt.Sprintf("错误码[%d] 错误原因:%s", e.Code, e.Message)
 }

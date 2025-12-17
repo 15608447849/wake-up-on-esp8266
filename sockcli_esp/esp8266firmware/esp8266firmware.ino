@@ -33,6 +33,7 @@ Timezone myTZ;
 
 // socket 服务信息
 const char* serverIP = "espsock.devtask.cn"; // socket 服务器 IP
+// const char* serverIP = "192.168.1.6"; // socket 服务器 IP
 const uint16_t serverPort = 8080;// 端口
 // sock 客户端
 WiFiClient tcpClient;
@@ -63,10 +64,13 @@ const char* ap_password = "00000000";
 // Web服务 端口80
 ESP8266WebServer server(80);
 
+//公网地址
+String networkIp = "unknown";
 
 // EEPROM - 读取 Wi-Fi 配置
 bool readWifi() {
   EEPROM.begin(65);
+
   if (EEPROM.read(CONFIG_FLAG_ADDR) != 0xAA) {
     Serial.println("没有wifi配置");
     EEPROM.end();
@@ -96,7 +100,8 @@ bool readWifi() {
 
 // EEPROM - 写入 Wi-Fi 配置
 void saveWifi(const String& ssid, const String& password) {
-  EEPROM.begin(65);
+   EEPROM.begin(65);
+
   // 清空旧数据
   for (int i = 0; i < 64; i++) EEPROM.write(i, 0);
 
@@ -437,31 +442,34 @@ void startConnectWifi(){
         Serial.println(WiFi.localIP().toString());
         tft.fillScreen(ST7735_BLACK);
         tft.setCursor(5, 50);
-        tft.setTextSize(2);
-        tft.println(WiFi.localIP().toString());
+        tft.setTextSize(1);
+        tft.setTextColor(ST7735_GREEN);
+        tft.println("CONNECT WIFI SUCCESS");
+         
       } else {
         Serial.println("WiFi连接失败");
         tft.fillScreen(ST7735_BLACK);
         tft.setTextColor(ST7735_RED);
-        tft.setTextSize(2);
+        tft.setTextSize(1);
         tft.setCursor(5, 50);
-        tft.print("connect fail, status:");
+        tft.print("CONNECT WIFI FAIL");
+        tft.setCursor(5, 65);
         tft.print(WiFi.status());
-         
-        delay(3000);
+         delay(3000);
       }
+     
 }
 
 
 // 网络唤醒函数
-void sendWakeOnLAN(String macAddress) {
+bool sendWakeOnLan(String macAddress) {
   WiFiUDP udp;
   
   // 解析MAC地址 (格式: "AA:BB:CC:DD:EE:FF")
   uint8_t mac[6];
   if (!parseMacAddress(macAddress, mac)) {
     Serial.println("MAC地址格式错误");
-    return;
+    return false;
   }
   
   // 创建魔术包 (102字节)
@@ -483,19 +491,7 @@ void sendWakeOnLAN(String macAddress) {
   udp.beginPacket("255.255.255.255", 9);  // 广播地址，端口9
   udp.write(magicPacket, 102);
   bool result = udp.endPacket();
-  
-  tft.fillScreen(ST7735_BLACK);
-  tft.setTextSize(1);
-  tft.setCursor(0, 30);
-  if (result) {
-    tft.println("WOL sendto ");
-    tft.setTextColor(ST7735_YELLOW);
-    tft.println(macAddress);
-  } else {
-    tft.setTextColor(ST7735_RED);
-    Serial.println("WOL send fail");
-  }
-  delay(3000);
+  return result;
 }
 
 // 解析MAC地址字符串
@@ -544,6 +540,7 @@ void sendTcpHeartbeat() {
     return;
   }
 
+  // 上电时间戳
   char formatted[20];
   sprintf(formatted, "%lu", millis());
 
@@ -560,6 +557,26 @@ void sendTcpHeartbeat() {
   Serial.printf("Tcp- 心跳已发送 | json=%s 字节数：%d\n", json.c_str(),jsonLength);
 }
 
+// 回执
+void sendWakeOnLanReceipt(String macStr) {
+  if (!isConnected || !tcpClient.connected()) {
+    isConnected = false;
+    return;
+  }
+
+  StaticJsonDocument<100> doc;
+    doc["data"] = macStr;
+    doc["cmd"] = "wol_rec_dev_recp";
+    doc["host"] = WiFi.localIP().toString();
+    doc["type"] = "esp8266";
+
+  String json;
+  size_t jsonLength = serializeJson(doc, json);
+  tcpClient.write(json.c_str(),jsonLength); 
+
+  Serial.printf("Tcp- WOL回执已发送 | json=%s 字节数：%d\n", json.c_str(),jsonLength);
+}
+
 // 处理命令
 void handleTcpCommand(const String& msg) {
   Serial.print("Tcp- 收到命令: ");
@@ -574,18 +591,47 @@ void handleTcpCommand(const String& msg) {
   }
 
   String cmd = doc["cmd"];
-  // TODO: 根据 cmd 执行功能（如重启、控制 LED 等）
+  
+  if (cmd == "net_ip") {
+    Serial.print("Tcp- NET IP: ");
+    Serial.println(doc["data"].as<const char*>());
+    networkIp = doc["data"].as<String>();
+  }
   if (cmd == "heartbeat") {
     Serial.print("Tcp- 收到心跳: ");
     Serial.println(doc["data"].as<const char*>());
     lastHeartbeat = millis();
   }
-  if (cmd == "wake_on_lan") {
+  if (cmd == "wol") {
     Serial.print("Tcp- 网络唤醒: ");
-    String mac = doc["data"];
-    Serial.println(mac);
-    sendWakeOnLAN(mac);
-    Serial.println("Tcp- 网络唤醒 已发送");
+    String macAddress = doc["data"];
+    Serial.println(macAddress);
+    bool result = sendWakeOnLan(macAddress);
+      
+    tft.fillScreen(ST7735_BLACK);
+    tft.setTextSize(2);
+    if (result) {
+      Serial.println("Tcp- 网络唤醒 发送成功");
+
+      tft.setTextColor(ST7735_GREEN);
+      tft.setCursor(10, 30);
+      tft.print("WOL TO :");
+      
+      tft.setTextSize(1);
+      tft.setTextColor(ST7735_YELLOW);
+      tft.setCursor(5, 45);
+      tft.println(macAddress);
+      sendWakeOnLanReceipt(macAddress);
+      Serial.println("Tcp- 网络唤醒 已回执");
+    } else {
+      Serial.println("Tcp- 网络唤醒 广播失败");
+      tft.setTextColor(ST7735_RED);
+      tft.setTextSize(2);
+      tft.setCursor(0, 30);
+      Serial.println("WOL SEND FAIL");
+    }
+    delay(5000);
+   
   }
   
 }
@@ -602,7 +648,7 @@ void readTcpMessage(){
 
   unsigned long startTime = millis(); 
   // 读取指定超时时间 TIMEOUT_MS 或 msgLen<100
-  while (millis() - startTime < TIMEOUT_MS && msgLen < 100) {
+  while (millis() - startTime < TIMEOUT_MS && msgLen < 900) {
     // 检查是否有可读取的字节
     if (tcpClient.available() > 0) {
       // 读取1个字节到缓冲区
@@ -624,54 +670,56 @@ void showRunningStatus(){
   tft.fillScreen(ST7735_BLACK);
 
   // 显示tcp连接信息
-  tft.setCursor(5, 5);
+  tft.setCursor(5, 15);
    tft.setTextSize(1);
   if(isConnected){
-    tft.setTextColor(ST7735_GREEN);
-    tft.print("tcp online");
+    tft.setTextColor(ST7735_GREEN, ST7735_BLACK);
+    tft.print("online");
   }else{
-    tft.setTextColor(ST7735_RED);
-    tft.print("tcp offline");
+    tft.setTextColor(ST7735_RED, ST7735_BLACK);
+    tft.print("offline");
   }
   
-  String smiley = "(o.o)!";
-  tft.setTextSize(2);
-  tft.setTextColor(ST7735_CYAN);
-  int16_t x1, y1;
-  uint16_t w, h; 
-  tft.getTextBounds(smiley, 0, 0, &x1, &y1, &w, &h);  // 获取文本尺寸
-   int centerX = (128 - w) / 2;
-   tft.setCursor(centerX, 20);  // TCP状态下面
-   tft.print(smiley);
-
-  // 显示最新时间
-  tft.setTextColor(ST7735_MAGENTA);
-  tft.setTextSize(2);
-  tft.setCursor(5,40);
-  tft.print(myTZ.year());
-  tft.print("-");
-  tft.print(myTZ.month());
-  tft.print("-");
-  tft.print(myTZ.day());
-
-  tft.setCursor(5,65);
-  tft.setTextColor(ST7735_YELLOW);
-  tft.print(myTZ.hour()); 
-  tft.print(":");
-  tft.print(myTZ.minute()); 
-  tft.print(":");
-  tft.print(myTZ.second());
-
   // 显示wifi信息
   tft.setTextSize(1);
-  tft.setTextColor(ST7735_WHITE);
-  tft.setCursor(0, 95);
+  tft.setTextColor(ST7735_WHITE,ST7735_BLACK);
+  tft.setCursor(5, 35);
   tft.print("SSID ");
-  tft.println(inputSSID);
-  tft.print("IP ");
+  tft.print(inputSSID);
+  tft.setCursor(5, 45);
+  tft.print("LOC IP ");
   tft.println(WiFi.localIP());
-  // tft.print("GETWATE:");
-  // tft.println(WiFi.gatewayIP());
+  // 公网信息
+  tft.setCursor(5, 55);  
+  tft.print("NET IP ");
+  tft.print(networkIp);
+
+  // 显示最新时间
+  tft.setTextColor(ST7735_ORANGE, ST7735_BLACK);
+  tft.setTextSize(1);
+  tft.setCursor(5,75);
+  char dateBuf[12];
+  sprintf(dateBuf, "%04d-%02d-%02d", myTZ.year(), myTZ.month(), myTZ.day());
+  tft.print(dateBuf);
+  // tft.print(myTZ.year());
+  // tft.print("-");
+  // tft.print(myTZ.month());
+  // tft.print("-");
+  // tft.print(myTZ.day());
+
+  tft.setCursor(5,95);
+  tft.setTextSize(2);
+  tft.setTextColor(ST7735_YELLOW,ST7735_BLACK);
+  char timeBuf[12];
+  sprintf(timeBuf, "%02d:%02d:%02d", myTZ.hour(), myTZ.minute(), myTZ.second());
+  tft.print(timeBuf);
+  // tft.print(myTZ.hour()); 
+  // tft.print(":");
+  // tft.print(myTZ.minute()); 
+  // tft.print(":");
+  // tft.print(myTZ.second());
+
+  
 }
 
 void setup(void) {
@@ -699,8 +747,9 @@ void setup(void) {
       // 连接tcp服务器
       connectTcpServer();
       // 同步时区
-      waitForSync();
+      waitForSync(3000);
       myTZ.setLocation("Asia/Shanghai"); 
+      // myTZ.setLocation("GMT+8"); 
 
     }else{
       // 连接失败 进入配网模式
@@ -727,15 +776,13 @@ void loop(void) {
 
   // 处理时间更新
   events();
-
   // 显示运行中状态
   showRunningStatus();
-
   // tcp连接中
   if (isConnected){
+
       // 读取消息
       readTcpMessage();
-
       // 处理命令
       if(msgLen > 0 ) {
         msgBuffer[msgLen] = '\0';
@@ -743,7 +790,6 @@ void loop(void) {
         Serial.printf("Tcp- 读取消息 json=%s 字节数: %d\n", message.c_str(), msgLen);
         handleTcpCommand(message);
       }
-
       // 处理心跳
       if (millis() - lastHeartbeat > HEARTBEAT_INTERVAL) {
         sendTcpHeartbeat();
@@ -754,13 +800,3 @@ void loop(void) {
     }
 
 }
-
-
-
-
-
-
-
-
-
-

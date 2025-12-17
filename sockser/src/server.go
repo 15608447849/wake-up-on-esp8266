@@ -10,20 +10,16 @@ import (
 	"time"
 )
 
-
- 
-
-
-
 // TCP服务器结构
 type TCPServer struct {
-	port              int                            // 监听端口
-	listener          net.Listener                   // TCP监听器
-	isRunning         bool                           // 服务器运行状态
-	mutex             sync.RWMutex                   // 读写锁
-	shutdownChan      chan bool                      // 关闭信号通道
-	wg                sync.WaitGroup                 // 等待组，用于优雅关闭
-	clientConnections 	      []*ClientConnection   		 // 客户端连接映射
+	port              int                 // 监听端口
+	listener          net.Listener        // TCP监听器
+	isRunning         bool                // 服务器运行状态
+	mutex             sync.RWMutex        // 读写锁
+	shutdownChan      chan bool           // 关闭信号通道
+	wg                sync.WaitGroup      // 等待组，用于优雅关闭
+	clientConnections []*ClientConnection // 客户端连接映射
+
 }
 
 // 创建新的TCP服务器
@@ -32,7 +28,7 @@ func NewTCPServer(port int) *TCPServer {
 		port:              port,
 		isRunning:         false,
 		shutdownChan:      make(chan bool, 1),
-		clientConnections: make([]*ClientConnection,0,10),
+		clientConnections: make([]*ClientConnection, 0, 10),
 	}
 }
 
@@ -45,7 +41,7 @@ func (s *TCPServer) cleanupConnections() {
 
 	for _, clientConn := range s.clientConnections {
 		if clientConn.IsActive {
-			 // 检查上一次心跳时间间隔
+			// 检查上一次心跳时间间隔
 			if clientConn.IsTimeout() {
 				// 停止连接
 				clientConn.Close()
@@ -58,12 +54,10 @@ func (s *TCPServer) cleanupConnections() {
 	s.clientConnections = validConns
 }
 
-
-
 // 处理系统信号
 func (s *TCPServer) handleSignals() {
-	defer s.wg.Done()// 延迟调用 当前协程退出时，通知WaitGroup完成一个任务
-	s.wg.Add(1) // 给WaitGroup加1：标记有一个任务（监听关闭信号）正在执行
+	defer s.wg.Done() // 延迟调用 当前协程退出时，通知WaitGroup完成一个任务
+	s.wg.Add(1)       // 给WaitGroup加1：标记有一个任务（监听关闭信号）正在执行
 
 	// 创建缓冲为1的信号通道（避免信号发送时阻塞）
 	sigChan := make(chan os.Signal, 1)
@@ -75,23 +69,20 @@ func (s *TCPServer) handleSignals() {
 	case <-sigChan: //  收到系统退出信号（Ctrl+C/kill）
 		s.Stop()
 	case <-s.shutdownChan: // 收到内部关闭信号
-		
+
 	}
 }
-
 
 // 定期清理非活跃连接和心跳超时检测
 func (s *TCPServer) cleanupRoutine() {
 	defer s.wg.Done()
 	s.wg.Add(1)
 
-	// 定时器 
+	// 定时器
 	// ticker：是 *time.Ticker 类型的实例，包含一个只读通道 ticker.C
 	// 定时器会每隔 d 时长向该通道发送当前时间（time.Time 类型）
 	ticker := time.NewTicker(HEARTBEAT_CHECK_INTERVAL)
-	defer ticker.Stop()// 延迟执行 停止定时器
-
-	 
+	defer ticker.Stop() // 延迟执行 停止定时器
 
 	for s.isRunning {
 		select {
@@ -104,26 +95,21 @@ func (s *TCPServer) cleanupRoutine() {
 	}
 }
 
-
-
 // 处理新连接
 func (s *TCPServer) handleNewConnection(conn net.Conn) {
 	defer s.wg.Done()
 	s.wg.Add(1)
 
 	// 创建客户端连接对象
-	clientConn := NewClientConnection( conn)
+	clientConn := NewClientConnection(conn)
 
 	// 添加连接
 	s.clientConnections = append(s.clientConnections, clientConn)
 
-
 	// 启动连接处理协程 (serverHandler中)
 	s.handleClientConnection(clientConn)
-	 
+
 }
-
-
 
 // 接受客户端连接的主循环
 func (s *TCPServer) acceptConnections() {
@@ -137,7 +123,7 @@ func (s *TCPServer) acceptConnections() {
 		}
 
 		conn, err := s.listener.Accept()
-		
+
 		if err != nil {
 			// 检查是否是超时错误
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
@@ -148,11 +134,10 @@ func (s *TCPServer) acceptConnections() {
 		}
 
 		fmt.Printf("新客户端连接 | 远程：%s | 本地：%s | 类型：%s \n",
-    		conn.RemoteAddr(), 
-			conn.LocalAddr(), 
+			conn.RemoteAddr(),
+			conn.LocalAddr(),
 			conn.RemoteAddr().Network(),
 		)
-		
 
 		// 检查连接数限制
 		if len(s.clientConnections) >= MAX_CONNECTIONS {
@@ -166,14 +151,13 @@ func (s *TCPServer) acceptConnections() {
 	}
 }
 
-
 // 启动服务器
 func (s *TCPServer) Start() error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	if s.isRunning {
-		return NewServerError(ERR_CONNECTION_TIMEOUT,"服务器已在运行")
+		return NewServerError(ERR_CONNECTION_TIMEOUT, "服务器已在运行")
 	}
 
 	// 创建TCP监听器
@@ -191,21 +175,17 @@ func (s *TCPServer) Start() error {
 	// 服务器启动成功
 	fmt.Printf("服务器启动成功，监听端口 %d \n", s.port)
 
-
 	// 启动信号处理协程
 	go s.handleSignals()
 
 	// 启动连接清理协程
 	go s.cleanupRoutine()
 
-
 	// 主循环：接受客户端连接
 	go s.acceptConnections()
 
 	return nil
 }
-
-
 
 // 停止服务器
 func (s *TCPServer) Stop() error {

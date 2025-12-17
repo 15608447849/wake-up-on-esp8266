@@ -8,6 +8,9 @@ import android.net.NetworkCapabilities;
 import android.util.Log;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
+
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.gson.Gson;
 
 import java.io.InputStream;
@@ -27,6 +30,7 @@ import lsp.wol.app.model.TcpData;
 
 public class SocketClient {
     private static final String SERVER_HOST = "espsock.devtask.cn";
+//    private static final String SERVER_HOST = "192.168.1.6";
     private static final int SERVER_PORT = 8080;
     private static Gson gson = new Gson();
 
@@ -120,6 +124,10 @@ public class SocketClient {
             outputStream = socket.getOutputStream();
 
             isRunning = true;
+
+            activity.runOnUiThread(() -> {
+                Toast.makeText(activity, "已连接服务器:"+ SERVER_HOST, Toast.LENGTH_SHORT).show();
+            });
         } catch (Exception e) {
             Log.e(String.valueOf(R.string.app_name), "SocketClient doConnect", e);
         }
@@ -196,9 +204,8 @@ public class SocketClient {
             try {
                 outputStream.write(bytes);
                 outputStream.flush();
-            } catch (SocketException se){
-                Log.i(String.valueOf(R.string.app_name), "SocketClient doSendBytes SocketException= "+ se);
-
+            } catch (SocketException e){
+                Log.i(String.valueOf(R.string.app_name), "SocketClient doSendBytes SocketException= "+ e);
                 cleanup();
             } catch (Exception e) {
                 Log.e(String.valueOf(R.string.app_name), "SocketClient doSendBytes", e);
@@ -209,16 +216,20 @@ public class SocketClient {
     private void doReceive(){
         if (inputStream!=null && isRunning && socket != null && !socket.isClosed()){
             try{
-                socket.setSoTimeout(10*1000);
+                //socket.setSoTimeout(3*1000);
                 // 阻塞读取，有数据时才会继续
                 int bytesRead = inputStream.read(buffer);
 
                 if (bytesRead > 0)
                     onProcessData(new String(buffer, 0, bytesRead, StandardCharsets.UTF_8));
 
-            }catch (SocketTimeoutException e){
+            } catch (SocketTimeoutException ig){
 //                Log.e(String.valueOf(R.string.app_name), "SocketClient doReceiveLoop socket timeout", e);
-            } catch (Exception e){
+            } catch (SocketException e){
+                Log.i(String.valueOf(R.string.app_name), "SocketClient doReceiveLoop SocketException= "+ e);
+                cleanup();
+            }
+            catch (Exception e){
                 Log.e(String.valueOf(R.string.app_name), "SocketClient doReceiveLoop", e);
             }
         }
@@ -266,7 +277,19 @@ public class SocketClient {
         TcpData tcpData = gson.fromJson(tcpDataJson, TcpData.class);
         if (tcpData.cmd.equals("heartbeat")){
             lastHeartbeatTime = System.currentTimeMillis();
-        }else{
+        }else if (tcpData.cmd.equals("wol_rec_dev_size")) {
+            activity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    AlertDialog alert = new MaterialAlertDialogBuilder(activity)
+                            .setMessage( tcpData.data+"台设备收到网络唤醒命令")
+                            .setPositiveButton("确定", null)
+                            .setCancelable(false)
+                            .create();
+                    alert.show();
+                }
+            });
+        } else{
             activity.runOnUiThread(() -> {
                 Toast.makeText(activity, "收到TCP消息:"+ tcpData.cmd+" : " + tcpData.data, Toast.LENGTH_LONG).show();
             });

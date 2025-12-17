@@ -39,11 +39,10 @@ public class MainActivity extends AppCompatActivity{
 
         @Override
         public void wakeOnLan(Device device) {
-            boolean isSend = socketClient.sendTcpMessage("forward",device.macAddress);
+            boolean isSend = socketClient.sendTcpMessage("wol",device.macAddress);
             if (!isSend){
                 Toast.makeText(MainActivity.this, "网络唤醒消息发送失败", Toast.LENGTH_SHORT).show();
                 // 尝试局域网广播
-
             }
         }
     };
