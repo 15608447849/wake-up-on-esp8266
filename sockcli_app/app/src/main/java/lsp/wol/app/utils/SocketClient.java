@@ -183,27 +183,32 @@ public class SocketClient {
             tcpData.cmd = "heartbeat";
             tcpData.data = String.valueOf(System.currentTimeMillis());
             tcpData.host = localIp;
-            String tcpDataJson = gson.toJson(tcpData);
-            doSendBytes(tcpDataJson.getBytes(StandardCharsets.UTF_8));
+            doSendBytes(gson.toJson(tcpData));
+            lastHeartbeatTime = System.currentTimeMillis();
         }
     }
 
-    private void doSendHandle() {
+    private boolean doSendHandle() {
         // 判断是否存在需要发送的消息
+        boolean flag = false;
         while (!sendQueue.isEmpty()){
             TcpData tcpData = sendQueue.poll();
             if (tcpData!=null){
-                String tcpDataJson = gson.toJson(tcpData);
-                doSendBytes(tcpDataJson.getBytes(StandardCharsets.UTF_8));
+                doSendBytes(gson.toJson(tcpData));
+                flag = true;
             }
         }
+        return flag;
     }
 
-    private void doSendBytes(byte[] bytes) {
+    private void doSendBytes(String message) {
         if (outputStream!=null && isRunning && !socket.isClosed() && socket.isConnected()) {
             try {
+                byte[] bytes = message.getBytes(StandardCharsets.UTF_8);
                 outputStream.write(bytes);
                 outputStream.flush();
+                Log.i(String.valueOf(R.string.app_name), "SocketClient doSendBytes 发送消息= "+ message);
+
             } catch (SocketException e){
                 Log.i(String.valueOf(R.string.app_name), "SocketClient doSendBytes SocketException= "+ e);
                 cleanup();
@@ -216,21 +221,30 @@ public class SocketClient {
     private void doReceive(){
         if (inputStream!=null && isRunning && socket != null && !socket.isClosed()){
             try{
-                //socket.setSoTimeout(3*1000);
+                socket.setSoTimeout(300);
                 // 阻塞读取，有数据时才会继续
                 int bytesRead = inputStream.read(buffer);
 
-                if (bytesRead > 0)
-                    onProcessData(new String(buffer, 0, bytesRead, StandardCharsets.UTF_8));
+                if (bytesRead > 0 ){
+                    String message = new String(buffer, 0, bytesRead, StandardCharsets.UTF_8);
+                    Log.i(String.valueOf(R.string.app_name), "SocketClient doReceive: 收到消息= "+message );
 
+                    if (bytesRead>1024){
+                        Log.i(String.valueOf(R.string.app_name), "SocketClient doReceive 数据包超长= "+ message);
+                    }else{
+                        onProcessData(message);
+                    }
+                }
             } catch (SocketTimeoutException ig){
-//                Log.e(String.valueOf(R.string.app_name), "SocketClient doReceiveLoop socket timeout", e);
-            } catch (SocketException e){
-                Log.i(String.valueOf(R.string.app_name), "SocketClient doReceiveLoop SocketException= "+ e);
-                cleanup();
+//                Log.e(String.valueOf(R.string.app_name), "SocketClient doReceive socket timeout", e);
             }
+//            catch (SocketException e){
+//                Log.i(String.valueOf(R.string.app_name), "SocketClient doReceive SocketException= "+ e);
+//                cleanup();
+//            }
             catch (Exception e){
-                Log.e(String.valueOf(R.string.app_name), "SocketClient doReceiveLoop", e);
+                Log.e(String.valueOf(R.string.app_name), "SocketClient doReceive", e);
+                cleanup();
             }
         }
     }
@@ -238,13 +252,14 @@ public class SocketClient {
     private void connectionLoop() {
         int loopIndex = 0;
         while (isRunning && socket != null && !socket.isClosed() && socket.isConnected()){
-            // 消息发送
-            doSendHandle();
-            // 心跳发送
-            doHeartbeat();
+
             // 接收消息
             doReceive();
-
+            // 非心跳消息发送
+            if (!doSendHandle()){
+                // 心跳发送
+                doHeartbeat();
+            }
             loopIndex++;
 
             //Log.i(String.valueOf(R.string.app_name), "SocketClient connectionLoop: index= " + loopIndex );
@@ -273,7 +288,6 @@ public class SocketClient {
     }
 
     private void onProcessData(String tcpDataJson) {
-        Log.i(String.valueOf(R.string.app_name), "SocketClient onProcessData: 收到消息= "+tcpDataJson );
         TcpData tcpData = gson.fromJson(tcpDataJson, TcpData.class);
         if (tcpData.cmd.equals("heartbeat")){
             lastHeartbeatTime = System.currentTimeMillis();

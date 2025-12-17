@@ -57,7 +57,7 @@ public class DeviceItemViewHolder extends RecyclerView.ViewHolder {
             // 网络唤醒
             Log.i(String.valueOf(R.string.app_name), "onClick: 网络唤醒 esp8266");
             callback.wakeOnLan(device);
-            Toast.makeText(view.getContext(),device.macAddress+" -> ESP8266设备",Toast.LENGTH_SHORT).show();
+            //Toast.makeText(view.getContext(),device.macAddress+" -> ESP8266设备",Toast.LENGTH_SHORT).show();
         });
 
         sendWolButtonLan.setOnClickListener(view -> {

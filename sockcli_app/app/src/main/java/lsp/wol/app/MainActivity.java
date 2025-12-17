@@ -24,6 +24,7 @@ import lsp.wol.app.viewholder.DeviceListAdapter;
 import lsp.wol.app.views.AddDeviceDialog;
 import lsp.wol.app.model.DeviceEventCallback;
 
+
 public class MainActivity extends AppCompatActivity{
 
 
