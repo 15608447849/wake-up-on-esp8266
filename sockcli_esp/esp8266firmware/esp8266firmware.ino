@@ -16,6 +16,7 @@
 #define TFT_CS     D1
 #define TFT_RST    D2
 #define TFT_DC     D3
+#define TFT_LED    D4
 
 // 二维码相关定义
 #define QR_VERSION 3        // 二维码版本(1-40，版本越高容量越大)
@@ -44,7 +45,7 @@ const unsigned long HEARTBEAT_INTERVAL = 10 * 1000;
 // 是否已经连接
 bool isConnected = false;
 // 缓冲区大小
-uint8_t msgBuffer[100] = {0};
+uint8_t msgBuffer[1024] = {0};
 // 实际接收大小
 size_t msgLen = 0;
 // 超时阈值-毫秒
@@ -582,7 +583,7 @@ void handleTcpCommand(const String& msg) {
   Serial.print("Tcp- 收到命令: ");
   Serial.println(msg);
 
-  StaticJsonDocument<100> doc;
+  StaticJsonDocument<2048> doc;
   DeserializationError error = deserializeJson(doc, msg);
   if (error) {
     Serial.print("Tcp- 处理命令 JSON 解析失败: ");
@@ -611,6 +612,7 @@ void handleTcpCommand(const String& msg) {
     tft.fillScreen(ST7735_BLACK);
     tft.setTextSize(2);
     if (result) {
+      digitalWrite(TFT_LED, HIGH);
       Serial.println("Tcp- 网络唤醒 发送成功");
 
       tft.setTextColor(ST7735_GREEN);
@@ -619,7 +621,7 @@ void handleTcpCommand(const String& msg) {
       
       tft.setTextSize(1);
       tft.setTextColor(ST7735_YELLOW);
-      tft.setCursor(5, 45);
+      tft.setCursor(5, 65);
       tft.println(macAddress);
       sendWakeOnLanReceipt(macAddress);
       Serial.println("Tcp- 网络唤醒 已回执");
@@ -630,8 +632,8 @@ void handleTcpCommand(const String& msg) {
       tft.setCursor(0, 30);
       Serial.println("WOL SEND FAIL");
     }
-    delay(5000);
-   
+    delay(8000);
+    digitalWrite(TFT_LED, LOW);
   }
   
 }
@@ -647,8 +649,8 @@ void readTcpMessage(){
   }
 
   unsigned long startTime = millis(); 
-  // 读取指定超时时间 TIMEOUT_MS 或 msgLen<100
-  while (millis() - startTime < TIMEOUT_MS && msgLen < 900) {
+  // 读取指定超时时间 TIMEOUT_MS 或 msgLen<1K （留1字节给\0）
+  while (millis() - startTime < TIMEOUT_MS && msgLen < 1023) {
     // 检查是否有可读取的字节
     if (tcpClient.available() > 0) {
       // 读取1个字节到缓冲区
@@ -656,10 +658,13 @@ void readTcpMessage(){
       msgLen++;
     }else {
       // 无数据时短暂延时，降低CPU占用
-      delay(1);
+      delay(100);
     }
   }
 
+  if(msgLen>0){
+    msgBuffer[msgLen] = '\0';
+  }
 
 }
 
@@ -678,6 +683,7 @@ void showRunningStatus(){
   }else{
     tft.setTextColor(ST7735_RED, ST7735_BLACK);
     tft.print("offline");
+    digitalWrite(TFT_LED, HIGH);
   }
   
   // 显示wifi信息
@@ -727,12 +733,13 @@ void setup(void) {
   Serial.begin(115200);
  
   // 初始化屏幕
+  pinMode(TFT_LED, OUTPUT);
+  digitalWrite(TFT_LED, HIGH);
   tft.initR(INITR_144GREENTAB);
   tft.setRotation(2);
   tft.setTextColor(ST7735_WHITE);
   tft.setTextSize(1);
   tft.fillScreen(ST7735_BLACK);
-  
   Serial.println("tft初始化完成");
 
   // 读取保存的WiFi配置
@@ -744,6 +751,7 @@ void setup(void) {
     startConnectWifi();
     // wifi连接成功
     if (WiFi.status() == WL_CONNECTED) {
+      digitalWrite(TFT_LED, LOW);
       // 连接tcp服务器
       connectTcpServer();
       // 同步时区
@@ -785,7 +793,7 @@ void loop(void) {
       readTcpMessage();
       // 处理命令
       if(msgLen > 0 ) {
-        msgBuffer[msgLen] = '\0';
+        
         String message = String((char*)msgBuffer);
         Serial.printf("Tcp- 读取消息 json=%s 字节数: %d\n", message.c_str(), msgLen);
         handleTcpCommand(message);
